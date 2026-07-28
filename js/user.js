@@ -1,12 +1,12 @@
 import { db } from './firebase-config.js';
 import { doc, getDoc, collection, getDocs, setDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Các biến toàn cục lưu trạng thái
 let currentCandidate = null;
 let testConfig = null;
 let activeTestId = null;
 let questionDataList = []; 
 let countdownInterval = null;
+let availableTests = {}; // Object lưu thông tin các bài thi đang mở
 
 // Thuật toán xáo trộn Fisher-Yates
 function shuffleArray(array) {
@@ -18,58 +18,87 @@ function shuffleArray(array) {
 }
 
 // ==========================================
-// 1. LOGIC ĐĂNG NHẬP VÀ XÁC THỰC
+// 1. TẢI DANH SÁCH BÀI THI KHI MỞ TRANG
+// ==========================================
+window.onload = async () => {
+    const selectBox = document.getElementById('testSelect');
+    try {
+        const snapshot = await getDocs(collection(db, "TestConfig"));
+        selectBox.innerHTML = '<option value="">-- Chọn bài thi bạn muốn làm --</option>';
+        
+        const now = new Date();
+
+        snapshot.forEach(docSnap => {
+            if (docSnap.id !== "current_test") { // Bỏ qua file rác cũ
+                const data = docSnap.data();
+                const endTime = new Date(data.endTime);
+                
+                // Chỉ hiển thị những bài thi chưa kết thúc
+                if (now <= endTime) {
+                    availableTests[data.testId] = data; // Lưu lại để dùng sau
+                    const option = document.createElement('option');
+                    option.value = data.testId;
+                    option.textContent = data.title;
+                    selectBox.appendChild(option);
+                }
+            }
+        });
+
+        if (Object.keys(availableTests).length === 0) {
+            selectBox.innerHTML = '<option value="">-- Hiện không có bài thi nào đang mở --</option>';
+        }
+    } catch (error) {
+        console.error("Lỗi tải danh sách:", error);
+        selectBox.innerHTML = '<option value="">-- Lỗi tải dữ liệu. Hãy tải lại trang (F5) --</option>';
+    }
+};
+
+// ==========================================
+// 2. LOGIC ĐĂNG NHẬP VÀ XÁC THỰC
 // ==========================================
 document.getElementById('btnLogin').addEventListener('click', async () => {
+    const testId = document.getElementById('testSelect').value;
     const cccd = document.getElementById('cccdInput').value.trim();
     const msg = document.getElementById('loginMessage');
     
-    if (!cccd) { msg.innerText = "Vui lòng nhập CCCD!"; return; }
+    if (!testId) { msg.innerText = "Vui lòng chọn một bài thi!"; return; }
+    if (!cccd) { msg.innerText = "Vui lòng nhập số CCCD!"; return; }
+    
     msg.style.color = "blue"; msg.innerText = "Đang kiểm tra hệ thống...";
 
     try {
-        // Bước A: Tìm xem bài thi nào đang được Admin kích hoạt
-        const activeTestSnap = await getDoc(doc(db, "System", "ActiveTest"));
-        if (!activeTestSnap.exists()) {
-            msg.style.color = "red"; msg.innerText = "Hệ thống hiện chưa có bài thi nào được mở!"; return;
-        }
-        activeTestId = activeTestSnap.data().activeTestId;
+        // Lấy cấu hình bài thi từ object đã lưu lúc tải trang
+        testConfig = availableTests[testId];
+        activeTestId = testId;
 
-        // Bước B: Lấy cấu hình của bài thi đang kích hoạt
-        const configSnap = await getDoc(doc(db, "TestConfig", activeTestId));
-        if (!configSnap.exists()) {
-            msg.style.color = "red"; msg.innerText = "Cấu hình bài thi bị lỗi!"; return;
-        }
-        testConfig = configSnap.data();
-
-        // Bước C: Kiểm tra thời gian mở/đóng bài thi
+        // Kiểm tra thời gian bắt đầu
         const now = new Date();
         const startTime = new Date(testConfig.startTime);
-        const endTime = new Date(testConfig.endTime);
-
         if (now < startTime) {
-            msg.style.color = "red"; msg.innerText = `Kỳ thi chưa bắt đầu. Thời gian mở: ${startTime.toLocaleString('vi-VN')}`; return;
-        }
-        if (now > endTime) {
-            msg.style.color = "red"; msg.innerText = "Kỳ thi đã kết thúc!"; return;
+            msg.style.color = "red"; 
+            msg.innerText = `Kỳ thi này chưa bắt đầu. Thời gian mở: ${startTime.toLocaleString('vi-VN')}`; 
+            return;
         }
 
-        // Bước D: Kiểm tra CCCD của thí sinh (ID giờ là: testId_CCCD)
+        // Kiểm tra CCCD trong Database của bài thi này
         const candidateRef = doc(db, "Candidates", `${activeTestId}_${cccd}`);
         const docSnap = await getDoc(candidateRef);
 
         if (docSnap.exists()) {
             currentCandidate = docSnap.data();
             
-            // Chuyển sang màn hình xác nhận
+            // Nếu đúng, chuyển sang màn hình Xác nhận
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('infoSection').classList.remove('hidden');
             
+            // Hiển thị thông tin lên giao diện
+            document.getElementById('infoTestTitle').innerText = testConfig.title;
             document.getElementById('infoName').innerText = currentCandidate.fullName;
             document.getElementById('infoDob').innerText = currentCandidate.dob || "Không có";
             document.getElementById('infoTitle').innerText = currentCandidate.title || "Không có";
+            document.getElementById('infoCccd').innerText = currentCandidate.cccd;
         } else {
-            msg.style.color = "red"; msg.innerText = "Bạn không có tên trong danh sách của bài thi này!";
+            msg.style.color = "red"; msg.innerText = "CCCD không tồn tại trong danh sách của bài thi này!";
         }
     } catch (error) {
         console.error(error);
@@ -78,18 +107,16 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
 });
 
 // ==========================================
-// 2. TẢI ĐỀ THI, XÁO TRỘN THEO TỪNG SECTION
+// 3. TẢI ĐỀ THI, XÁO TRỘN VÀ BẮT ĐẦU
 // ==========================================
 document.getElementById('btnStartExam').addEventListener('click', async () => {
     document.getElementById('infoSection').classList.add('hidden');
     document.getElementById('examSection').classList.remove('hidden');
     document.getElementById('examTitle').innerText = testConfig.title;
 
-    // Truy vấn CHỈ lấy các câu hỏi thuộc về bài thi đang mở
     const qQuery = query(collection(db, "QuestionBank"), where("testId", "==", activeTestId));
     const qSnapshot = await getDocs(qQuery);
     
-    // Nhóm câu hỏi theo từng SectionId
     const questionsBySection = {};
     qSnapshot.forEach((doc) => {
         const q = { id: doc.id, ...doc.data() };
@@ -99,28 +126,24 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
 
     const container = document.getElementById('questionsContainer');
     container.innerHTML = "";
-    let globalQuestionIndex = 0; // Đếm số thứ tự câu hỏi xuyên suốt các section
+    let globalQuestionIndex = 0; 
 
-    // Duyệt qua cấu hình từng Section mà Admin đã cài đặt
     testConfig.sections.forEach((secConfig, secIndex) => {
         const secId = secConfig.sectionId;
         let secQuestions = questionsBySection[secId] || [];
         
-        // Xáo trộn và cắt đúng số lượng câu hỏi Admin yêu cầu cho section này
+        // Xáo trộn & cắt lấy đúng số lượng câu
         secQuestions = shuffleArray(secQuestions).slice(0, secConfig.numQuestions);
         
         if (secQuestions.length > 0) {
-            // In tiêu đề Section phân cách
-            container.innerHTML += `<h3 style="margin-top:20px; color:#007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px;">Phần ${secIndex + 1} (${secConfig.pointsPerQuestion} điểm/câu)</h3>`;
+            container.innerHTML += `<h3 style="margin-top:25px; color:#333; background: #e9ecef; padding: 10px; border-radius: 4px;">Phần ${secIndex + 1} (${secConfig.pointsPerQuestion} điểm/câu)</h3>`;
         }
 
-        // Đổ câu hỏi ra HTML
         secQuestions.forEach((q) => {
             globalQuestionIndex++;
             let answers = [...q.wrongAnswers, q.correctAnswer];
-            answers = shuffleArray(answers); // Xáo trộn đáp án A B C D
+            answers = shuffleArray(answers);
 
-            // Lưu dữ liệu vào mảng để chấm điểm (Lưu thêm trọng số điểm của từng câu)
             questionDataList.push({
                 id: q.id,
                 questionText: q.questionText,
@@ -129,7 +152,7 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
             });
 
             let html = `<div class="question-block" id="qblock_${globalQuestionIndex - 1}">
-                <p><strong>Câu ${globalQuestionIndex}:</strong> ${q.questionText}</p>`;
+                <p style="font-size: 16px; margin-bottom: 15px;"><strong>Câu ${globalQuestionIndex}:</strong> ${q.questionText}</p>`;
             
             answers.forEach((ans) => {
                 html += `<label class="answer-label">
@@ -141,12 +164,11 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
         });
     });
 
-    // Bắt đầu đếm ngược
     startTimer(testConfig.duration * 60);
 });
 
 // ==========================================
-// 3. ĐỒNG HỒ ĐẾM NGƯỢC
+// 4. ĐỒNG HỒ ĐẾM NGƯỢC
 // ==========================================
 function startTimer(durationInSeconds) {
     let timer = durationInSeconds;
@@ -169,7 +191,7 @@ function startTimer(durationInSeconds) {
 }
 
 // ==========================================
-// 4. CHẤM ĐIỂM & NỘP BÀI LÊN FIREBASE
+// 5. CHẤM ĐIỂM & NỘP BÀI
 // ==========================================
 document.getElementById('btnSubmitExam').addEventListener('click', () => {
     const unanswered = questionDataList.findIndex((q, i) => !document.querySelector(`input[name="q_${i}"]:checked`));
@@ -185,7 +207,7 @@ async function submitExam() {
     clearInterval(countdownInterval); 
     
     let totalScore = 0;
-    let maxScore = 0; // Tính điểm tối đa có thể đạt
+    let maxScore = 0; 
     const userAnswers = {};
 
     questionDataList.forEach((q, index) => {
@@ -195,7 +217,7 @@ async function submitExam() {
         userAnswers[`Câu ${index + 1}`] = userChoice;
 
         if (userChoice === q.correctAnswer) {
-            totalScore += q.points; // Cộng điểm dựa trên cấu hình của Section
+            totalScore += q.points; 
         }
     });
 
@@ -205,21 +227,20 @@ async function submitExam() {
     document.getElementById('resultSection').classList.remove('hidden');
     
     const resMsg = document.getElementById('resultMessage');
-    document.getElementById('scoreDisplay').innerText = `Điểm của bạn: ${totalScore} / ${maxScore}`;
+    document.getElementById('scoreDisplay').innerText = `${totalScore} / ${maxScore}`;
     
     if (isPassed) {
         resMsg.style.color = "green";
-        resMsg.innerText = `Chúc mừng! Bạn đã ĐẠT bài thi (Điểm chuẩn: ${testConfig.passScore})`;
+        resMsg.innerText = `Chúc mừng! Bạn đã ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
     } else {
         resMsg.style.color = "red";
-        resMsg.innerText = `Rất tiếc! Bạn CHƯA ĐẠT bài thi (Điểm chuẩn: ${testConfig.passScore})`;
+        resMsg.innerText = `Rất tiếc! Bạn CHƯA ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
     }
 
     try {
-        // ID bản ghi: testId_CCCD để một thí sinh có thể làm nhiều bài thi khác nhau mà không bị ghi đè
         const submissionRef = doc(db, "Submissions", `${activeTestId}_${currentCandidate.cccd}`);
         await setDoc(submissionRef, {
-            testId: activeTestId, // Cực kỳ quan trọng để Admin lọc thống kê
+            testId: activeTestId,
             fullName: currentCandidate.fullName,
             cccd: currentCandidate.cccd,
             score: totalScore,
