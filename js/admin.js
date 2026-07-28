@@ -53,14 +53,18 @@ document.getElementById('btnSaveData').addEventListener('click', async () => {
 
         // 2. Xử lý File Ngân hàng Câu hỏi
         const qData = await readExcelFile(fileQuestions);
-        qData.forEach((row, index) => {
-            if (row.length >= 2) {
+        qData.forEach((row) => {
+            // Đảm bảo dòng có dữ liệu ở cột Câu hỏi (row[0]) và Đáp án đúng (row[1])
+            if (row && row[0] !== undefined && row[1] !== undefined) {
                 const questionRef = doc(collection(db, "QuestionBank"));
-                // row[0]=Câu hỏi, row[1]=Đ/a Đúng, row[2]...=Đ/a Sai
+                
+                // Lọc bỏ các ô trống/undefined ở cột đáp án sai
+                const wrongAnswers = row.slice(2).filter(ans => ans !== undefined && ans !== null && String(ans).trim() !== "");
+                
                 batch.set(questionRef, {
-                    questionText: row[0],
-                    correctAnswer: row[1],
-                    wrongAnswers: row.slice(2).filter(ans => ans != null) // Lấy từ cột 3 trở đi, loại bỏ ô trống
+                    questionText: String(row[0]).trim(),
+                    correctAnswer: String(row[1]).trim(),
+                    wrongAnswers: wrongAnswers.map(ans => String(ans).trim())
                 });
             }
         });
@@ -68,16 +72,20 @@ document.getElementById('btnSaveData').addEventListener('click', async () => {
         // 3. Xử lý File Danh sách Thí sinh
         const cData = await readExcelFile(fileCandidates);
         cData.forEach((row) => {
-            if (row.length >= 6) {
-                const cccd = String(row[5]).trim(); // Dùng CCCD làm ID tài liệu để dễ truy vấn đăng nhập
-                if (cccd) {
+            // Đảm bảo dòng có tồn tại và cột CCCD (row[5]) không bị rỗng/undefined
+            if (row && row[5] !== undefined && row[5] !== null) {
+                const cccd = String(row[5]).trim();
+                
+                // Bỏ qua nếu CCCD là chuỗi rỗng hoặc bị đọc nhầm thành chữ "undefined"
+                if (cccd !== "" && cccd !== "undefined") {
                     const candidateRef = doc(db, "Candidates", cccd);
                     batch.set(candidateRef, {
-                        stt: row[0],
-                        fullName: row[1],
-                        dob: row[2],
-                        title: row[3],
-                        gender: row[4],
+                        // Dùng toán tử || "" để nếu ô Excel trống sẽ trả về chuỗi rỗng thay vì undefined
+                        stt: row[0] !== undefined ? row[0] : "",
+                        fullName: row[1] !== undefined ? String(row[1]).trim() : "",
+                        dob: row[2] !== undefined ? String(row[2]).trim() : "",
+                        title: row[3] !== undefined ? String(row[3]).trim() : "",
+                        gender: row[4] !== undefined ? String(row[4]).trim() : "",
                         cccd: cccd
                     });
                 }
