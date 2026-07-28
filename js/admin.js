@@ -1,8 +1,10 @@
 import { db } from './firebase-config.js';
-import { doc, setDoc, writeBatch, collection, getDocs, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// Bổ sung thêm getDoc, updateDoc
+import { doc, getDoc, updateDoc, setDoc, writeBatch, collection, getDocs, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 let sectionCount = 0;
 let scoreChartInstance = null;
+let titleDebounceTimer = null; // Biến dùng cho tính năng kiểm tra độ trễ gõ phím
 
 function readExcelFile(file) {
     return new Promise((resolve, reject) => {
@@ -37,15 +39,45 @@ function addSectionBlock(event) {
     container.appendChild(div);
 }
 
-// BỌC TOÀN BỘ SỰ KIỆN TRONG DOMContentLoaded ĐỂ CHỐNG LỖI NULL
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Nút Thêm Section
+    // --- KHỞI TẠO ---
     document.getElementById('btnAddSection')?.addEventListener('click', addSectionBlock);
-    addSectionBlock(); // Tự động thêm 1 section lúc đầu
-    loadTestHistory(); // Tải danh sách lúc đầu
+    addSectionBlock(); 
+    loadTestHistory();
 
-    // 2. Nút Lưu Bài Thi
+    // --- KIỂM TRA TRÙNG TÊN THỜI GIAN THỰC (REAL-TIME) ---
+    document.getElementById('testTitle')?.addEventListener('input', (e) => {
+        clearTimeout(titleDebounceTimer);
+        const title = e.target.value.trim();
+        const msgEl = document.getElementById('titleCheckMsg');
+        
+        if(!title) { msgEl.innerText = ""; return; }
+        
+        msgEl.innerText = "⏳ Đang kiểm tra...";
+        msgEl.style.color = "#ffc107"; // Màu vàng
+        
+        // Đợi 0.5s sau khi ngừng gõ mới truy vấn database
+        titleDebounceTimer = setTimeout(async () => {
+            try {
+                const qTitleCheck = query(collection(db, "TestConfig"), where("title", "==", title));
+                const titleSnap = await getDocs(qTitleCheck);
+                
+                if (!titleSnap.empty) {
+                    msgEl.innerText = "❌ Tên này đã tồn tại!";
+                    msgEl.style.color = "red";
+                } else {
+                    msgEl.innerText = "✅ Tên hợp lệ!";
+                    msgEl.style.color = "green";
+                }
+            } catch (error) {
+                msgEl.innerText = "Lỗi mạng!";
+            }
+        }, 500); 
+    });
+
+
+    // --- LƯU BÀI THI MỚI ---
     document.getElementById('btnSaveData')?.addEventListener('click', async () => {
         const statusEl = document.getElementById('statusMessage');
         const testTitle = document.getElementById('testTitle').value.trim();
@@ -56,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusEl.innerText = "Đang kiểm tra hệ thống...";
 
         try {
+            // Check lại trùng tên lần cuối trước khi lưu (đề phòng)
             const qTitleCheck = query(collection(db, "TestConfig"), where("title", "==", testTitle));
             const titleSnap = await getDocs(qTitleCheck);
             if (!titleSnap.empty) {
@@ -134,7 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await batch.commit();
             statusEl.style.color = "green";
-            statusEl.innerText = `Lưu thành công! Mã bài thi: ${testId}`;
+            statusEl.innerText = `Lưu thành công!`;
+            
+            document.getElementById('titleCheckMsg').innerText = "";
+            document.getElementById('testTitle').value = "";
             loadTestHistory();
 
         } catch (error) {
@@ -144,11 +180,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 3. Nút Xóa Bài Thi
+    // --- MỞ FORM SỬA CẤU HÌNH ---
+    document.getElementById('btnEditTest')?.addEventListener('click', async () => {
+        const testId = document.getElementById('historyTestSelect').value;
+        if (!testId) { alert("Vui lòng chọn 1 bài thi để sửa!"); return; }
+
+        try {
+            const docSnap = await getDoc(doc(db, "TestConfig", testId));
+            if(docSnap.exists()) {
+                const data = docSnap.data();
+                document.getElementById('editTestTitle').value = data.title;
+                document.getElementById('editDuration').value = data.duration;
+                document.getElementById('editStartTime').value = data.startTime;
+                document.getElementById('editEndTime').value = data.endTime;
+                document.getElementById('editPassScore').value = data.passScore;
+                
+                // Hiện form lên
+                document.getElementById('editConfigSection').style.display = 'block';
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Không thể tải cấu hình bài thi!");
+        }
+    });
+
+    // --- ĐÓNG FORM SỬA ---
+    document.getElementById('btnCancelEdit')?.addEventListener('click', () => {
+        document.getElementById('editConfigSection').style.display = 'none';
+    });
+
+    // --- LƯU THAY ĐỔI CẤU HÌNH ---
+    document.getElementById('btnSaveEdit')?.addEventListener('click', async () => {
+        const testId = document.getElementById('historyTestSelect').value;
+        const newTitle = document.getElementById('editTestTitle').value.trim();
+        
+        if(!newTitle) { alert("Tiêu đề không được để trống!"); return; }
+
+        try {
+            // Kiểm tra trùng tên với bài thi KHÁC (Tránh việc update chính nó mà bị báo trùng)
+            const qTitleCheck = query(collection(db, "TestConfig"), where("title", "==", newTitle));
+            const titleSnap = await getDocs(qTitleCheck);
+            
+            let isDuplicate = false;
+            titleSnap.forEach(d => {
+                if (d.id !== testId) isDuplicate = true; 
+            });
+
+            if (isDuplicate) { 
+                alert(`Tiêu đề "${newTitle}" đã được sử dụng bởi bài thi khác!`); 
+                return; 
+            }
+
+            // Tiến hành cập nhật
+            await updateDoc(doc(db, "TestConfig", testId), {
+                title: newTitle,
+                duration: parseInt(document.getElementById('editDuration').value),
+                startTime: document.getElementById('editStartTime').value,
+                endTime: document.getElementById('editEndTime').value,
+                passScore: parseInt(document.getElementById('editPassScore').value)
+            });
+
+            alert("Đã cập nhật cấu hình bài thi thành công!");
+            document.getElementById('editConfigSection').style.display = 'none';
+            loadTestHistory(); // Cập nhật lại dropdown tên bài thi
+
+        } catch (error) {
+            console.error("Lỗi cập nhật:", error);
+            alert("Lỗi khi lưu thay đổi!");
+        }
+    });
+
+
+    // --- XÓA BÀI THI ---
     document.getElementById('btnDeleteTest')?.addEventListener('click', async () => {
         const testId = document.getElementById('historyTestSelect').value;
         if (!testId) { alert("Vui lòng chọn 1 bài thi ở danh sách bên trái để xóa!"); return; }
-        
         if (!confirm("CẢNH BÁO MẤT DỮ LIỆU!\nBạn có chắc chắn muốn XÓA TOÀN BỘ Cấu hình, Danh sách, Câu hỏi và Bài làm của bài thi này không?")) return;
 
         const btnDel = document.getElementById('btnDeleteTest');
@@ -168,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             alert("Đã xóa bài thi thành công!");
             document.getElementById('statsSummary').style.display = 'none';
+            document.getElementById('editConfigSection').style.display = 'none';
             loadTestHistory();
         } catch (error) {
             console.error("Lỗi xóa:", error);
@@ -176,7 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnDel.innerText = "Xóa Bài Thi";
     });
 
-    // 4. Nút Xem Thống Kê
+
+    // --- XEM THỐNG KÊ ---
     document.getElementById('btnLoadStats')?.addEventListener('click', async () => {
         const testId = document.getElementById('historyTestSelect').value;
         if (!testId) { alert("Vui lòng chọn 1 bài thi từ danh sách!"); return; }
@@ -235,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 }); // <-- Kết thúc hàm DOMContentLoaded
 
+// --- CÁC HÀM TIỆN ÍCH ---
 async function loadTestHistory() {
     const selectBox = document.getElementById('historyTestSelect');
     if(!selectBox) return;
