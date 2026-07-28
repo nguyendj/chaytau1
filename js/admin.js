@@ -176,7 +176,9 @@ document.getElementById('btnDeleteTest').addEventListener('click', async () => {
     document.getElementById('btnDeleteTest').innerText = "Xóa Bài Thi";
 });
 
-// TẢI DANH SÁCH & THỐNG KÊ
+// ==========================================
+// TẢI DANH SÁCH & THỐNG KÊ (BẢN CẬP NHẬT AN TOÀN)
+// ==========================================
 async function loadTestHistory() {
     const selectBox = document.getElementById('historyTestSelect');
     selectBox.innerHTML = '<option value="">-- Đang tải... --</option>';
@@ -193,7 +195,7 @@ async function loadTestHistory() {
             }
         });
     } catch (error) {
-        console.error(error);
+        console.error("Lỗi tải danh sách bài thi:", error);
     }
 }
 
@@ -201,13 +203,18 @@ document.getElementById('btnLoadStats').addEventListener('click', async () => {
     const testId = document.getElementById('historyTestSelect').value;
     if (!testId) { alert("Vui lòng chọn 1 bài thi từ danh sách!"); return; }
 
-    document.getElementById('btnLoadStats').innerText = "Đang tải...";
+    const btn = document.getElementById('btnLoadStats');
+    btn.innerText = "Đang tải dữ liệu...";
     const tbody = document.querySelector('#resultsTable tbody');
     tbody.innerHTML = ""; 
 
     try {
+        console.log("Bắt đầu truy vấn dữ liệu cho bài thi:", testId);
+        
         const q = query(collection(db, "Submissions"), where("testId", "==", testId));
         const subSnapshot = await getDocs(q);
+        
+        console.log("Số lượng bài thi đã nộp tìm thấy:", subSnapshot.size);
         
         let total = 0, passed = 0, failed = 0;
         let scoreFreq = {}; 
@@ -216,39 +223,69 @@ document.getElementById('btnLoadStats').addEventListener('click', async () => {
             total++;
             const data = docSnap.data();
             if (data.isPassed) passed++; else failed++;
+            
             scoreFreq[data.score] = (scoreFreq[data.score] || 0) + 1;
 
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${data.cccd}</td><td>${data.fullName}</td>
+            tr.innerHTML = `<td>${data.cccd || "N/A"}</td>
+                <td>${data.fullName || "N/A"}</td>
                 <td><strong>${data.score}</strong></td>
                 <td style="color: ${data.isPassed ? 'green' : 'red'}; font-weight: bold;">${data.isPassed ? 'ĐẠT' : 'TRƯỢT'}</td>
                 <td>${new Date(data.submittedAt).toLocaleString('vi-VN')}</td>`;
             tbody.appendChild(tr);
         });
 
+        // Hiển thị phần tóm tắt và bảng (Cho hiện ra luôn dù biểu đồ có lỗi)
         document.getElementById('totalSubs').innerText = total;
         document.getElementById('passedSubs').innerText = passed;
         document.getElementById('failedSubs').innerText = failed;
         document.getElementById('statsSummary').style.display = 'block';
 
-        const labels = Object.keys(scoreFreq).sort((a, b) => Number(a) - Number(b)); 
-        const dataPoints = labels.map(label => scoreFreq[label]);
-        drawChart(labels, dataPoints);
+        // Tách biệt việc vẽ biểu đồ vào khối try...catch riêng
+        try {
+            const labels = Object.keys(scoreFreq).sort((a, b) => Number(a) - Number(b)); 
+            const dataPoints = labels.map(label => scoreFreq[label]);
+            drawChart(labels, dataPoints);
+        } catch (chartErr) {
+            console.error("Biểu đồ không vẽ được (có thể do lỗi Chart.js):", chartErr);
+        }
         
-        document.getElementById('btnLoadStats').innerText = "Xem Thống Kê";
+        btn.innerText = "Xem Thống Kê";
+        
+        if (total === 0) {
+            alert("Bài thi này hiện chưa có ai làm hoặc nộp bài!");
+        }
+
     } catch (error) {
-        console.error(error);
-        alert("Lỗi tải thống kê!");
-        document.getElementById('btnLoadStats').innerText = "Xem Thống Kê";
+        console.error("Lỗi Firebase khi kéo Submissions:", error);
+        alert("Có lỗi khi tải dữ liệu! Vui lòng nhấn F12, xem tab Console để biết chi tiết lỗi.");
+        btn.innerText = "Xem Thống Kê";
     }
 });
 
 function drawChart(labels, dataPoints) {
-    const ctx = document.getElementById('scoreChart').getContext('2d');
+    // Kiểm tra xem thư viện Chart.js đã được tải thành công chưa
+    if (typeof Chart === 'undefined') {
+        console.warn("Thư viện Chart.js chưa được tải.");
+        return; 
+    }
+
+    const canvas = document.getElementById('scoreChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
     if (scoreChartInstance) scoreChartInstance.destroy();
+    
     scoreChartInstance = new Chart(ctx, {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: 'Số người đạt mức điểm', data: dataPoints, backgroundColor: 'rgba(54, 162, 235, 0.6)' }] },
+        data: { 
+            labels: labels, 
+            datasets: [{ 
+                label: 'Số người đạt mức điểm', 
+                data: dataPoints, 
+                backgroundColor: 'rgba(54, 162, 235, 0.6)' 
+            }] 
+        },
         options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
     });
 }
