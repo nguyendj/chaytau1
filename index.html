@@ -8,52 +8,63 @@
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
         .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #f9f9f9; }
         .hidden { display: none; }
-        input[type="text"] { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        input[type="text"], select { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; font-size: 16px;}
         button { background: #28a745; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; margin-top: 10px;}
         button:hover { background: #218838; }
         .question-block { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; }
-        .answer-label { display: block; margin: 8px 0; cursor: pointer; padding: 8px; background: #f1f1f1; border-radius: 4px;}
+        .answer-label { display: block; margin: 8px 0; cursor: pointer; padding: 10px; background: #f1f1f1; border-radius: 4px;}
         .answer-label:hover { background: #e2e2e2; }
-        #timerDisplay { font-size: 24px; font-weight: bold; color: #dc3545; text-align: right; }
+        #timerDisplay { font-size: 24px; font-weight: bold; color: #dc3545; text-align: right; margin-bottom: 15px;}
     </style>
 </head>
 <body>
 
     <!-- PHẦN 1: Đăng nhập -->
     <div id="loginSection" class="card">
-        <h2>Đăng nhập hệ thống thi</h2>
-        <p>Vui lòng nhập chính xác số Căn cước công dân (CCCD) của bạn:</p>
-        <input type="text" id="cccdInput" placeholder="Nhập số CCCD...">
-        <button id="btnLogin">Đăng Nhập</button>
-        <p id="loginMessage" style="color: red; font-weight: bold;"></p>
+        <h2 style="text-align: center; color: #007bff;">Đăng nhập hệ thống thi</h2>
+        
+        <label style="font-weight: bold;">1. Chọn bài thi của bạn:</label>
+        <select id="testSelect">
+            <option value="">-- Đang tải danh sách bài thi --</option>
+        </select>
+
+        <label style="font-weight: bold; display: block; margin-top: 15px;">2. Nhập số Căn cước công dân (CCCD):</label>
+        <input type="text" id="cccdInput" placeholder="Nhập chính xác số CCCD...">
+        
+        <button id="btnLogin" style="width: 100%; font-weight: bold;">Kiểm tra thông tin</button>
+        <p id="loginMessage" style="color: red; font-weight: bold; text-align: center;"></p>
     </div>
 
     <!-- PHẦN 2: Xác nhận thông tin -->
     <div id="infoSection" class="card hidden">
-        <h2>Xác nhận thông tin Thí sinh</h2>
-        <p><strong>Họ và tên:</strong> <span id="infoName"></span></p>
-        <p><strong>Ngày sinh:</strong> <span id="infoDob"></span></p>
-        <p><strong>Chức danh:</strong> <span id="infoTitle"></span></p>
-        <p style="color: blue;"><i>Vui lòng kiểm tra kỹ thông tin trước khi bắt đầu. Thời gian sẽ đếm ngược ngay khi bạn bấm nút!</i></p>
-        <button id="btnStartExam">Bắt đầu làm bài</button>
+        <h2 style="color: #28a745;">Xác nhận thông tin Thí sinh</h2>
+        <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+            <p><strong>Bài thi:</strong> <span id="infoTestTitle" style="color: #007bff; font-weight: bold; font-size: 18px;"></span></p>
+            <hr>
+            <p><strong>Họ và tên:</strong> <span id="infoName" style="font-weight: bold;"></span></p>
+            <p><strong>Ngày sinh:</strong> <span id="infoDob"></span></p>
+            <p><strong>Chức danh:</strong> <span id="infoTitle"></span></p>
+            <p><strong>Số CCCD:</strong> <span id="infoCccd"></span></p>
+        </div>
+        <p style="color: red; font-style: italic;">Lưu ý: Thời gian làm bài sẽ đếm ngược ngay sau khi bạn bấm nút Bắt đầu!</p>
+        <button id="btnStartExam" style="width: 100%; font-size: 18px; padding: 12px;">Xác nhận & Bắt đầu làm bài</button>
     </div>
 
     <!-- PHẦN 3: Khu vực làm bài thi -->
     <div id="examSection" class="card hidden">
         <div id="timerDisplay">Thời gian còn lại: --:--</div>
-        <h2 id="examTitle">Đề thi trắc nghiệm</h2>
+        <h2 id="examTitle" style="color: #007bff; border-bottom: 2px solid #ccc; padding-bottom: 10px;"></h2>
         <div id="questionsContainer"></div>
-        <button id="btnSubmitExam" style="width: 100%; background: #007bff; font-size: 18px; padding: 15px;">NỘP BÀI</button>
+        <button id="btnSubmitExam" style="width: 100%; background: #007bff; font-size: 18px; padding: 15px; font-weight: bold;">NỘP BÀI</button>
     </div>
 
     <!-- PHẦN 4: Kết quả -->
-    <div id="resultSection" class="card hidden">
+    <div id="resultSection" class="card hidden" style="text-align: center;">
         <h2>Hoàn thành bài thi!</h2>
-        <h3 id="scoreDisplay"></h3>
-        <p id="resultMessage"></p>
+        <h1 id="scoreDisplay" style="color: #007bff; font-size: 40px; margin: 10px 0;"></h1>
+        <h3 id="resultMessage"></h3>
     </div>
 
-    <!-- Gọi file xử lý logic Javascript -->
     <script type="module" src="./js/user.js"></script>
 </body>
 </html>
