@@ -3,68 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ thống Thi Trắc nghiệm</title>
+    <title>Quản trị Bài thi - Chạy Tàu 1</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
         .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #f9f9f9; }
-        .hidden { display: none; }
-        input[type="text"], select { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; font-size: 16px;}
-        button { background: #28a745; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; margin-top: 10px;}
-        button:hover { background: #218838; }
-        .question-block { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; }
-        .answer-label { display: block; margin: 8px 0; cursor: pointer; padding: 10px; background: #f1f1f1; border-radius: 4px;}
-        .answer-label:hover { background: #e2e2e2; }
-        #timerDisplay { font-size: 24px; font-weight: bold; color: #dc3545; text-align: right; margin-bottom: 15px;}
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        input[type="text"], input[type="number"], input[type="datetime-local"], select { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; margin-top: 10px;}
+        button:hover { background: #0056b3; }
+        .section-block { border: 1px dashed #007bff; padding: 15px; margin-bottom: 15px; background: #fff; position: relative;}
+        .btn-remove { background: #dc3545; padding: 5px 10px; font-size: 12px; position: absolute; right: 15px; top: 15px;}
+        #statusMessage { margin-top: 20px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
+    <h1>Quản trị Hệ thống Thi Trắc nghiệm</h1>
 
-    <!-- PHẦN 1: Đăng nhập -->
-    <div id="loginSection" class="card">
-        <h2 style="text-align: center; color: #007bff;">Đăng nhập hệ thống thi</h2>
-        
-        <label style="font-weight: bold;">1. Chọn bài thi của bạn:</label>
-        <select id="testSelect">
-            <option value="">-- Đang tải danh sách bài thi --</option>
-        </select>
-
-        <label style="font-weight: bold; display: block; margin-top: 15px;">2. Nhập số Căn cước công dân (CCCD):</label>
-        <input type="text" id="cccdInput" placeholder="Nhập chính xác số CCCD...">
-        
-        <button id="btnLogin" style="width: 100%; font-weight: bold;">Kiểm tra thông tin</button>
-        <p id="loginMessage" style="color: red; font-weight: bold; text-align: center;"></p>
+    <!-- TẠO ĐỀ THI MỚI -->
+    <div class="card">
+        <h3>1. Cấu hình bài thi mới</h3>
+        <div class="form-group"><label>Tiêu đề bài kiểm tra (Không được trùng):</label><input type="text" id="testTitle" required></div>
+        <div class="form-group"><label>Thời gian làm bài (phút):</label><input type="number" id="duration" value="45" required></div>
+        <div class="form-group"><label>Thời gian mở bài thi:</label><input type="datetime-local" id="startTime" required></div>
+        <div class="form-group"><label>Thời gian đóng bài thi:</label><input type="datetime-local" id="endTime" required></div>
+        <div class="form-group"><label>Điểm tối thiểu để đạt:</label><input type="number" id="passScore" value="50" required></div>
     </div>
 
-    <!-- PHẦN 2: Xác nhận thông tin -->
-    <div id="infoSection" class="card hidden">
-        <h2 style="color: #28a745;">Xác nhận thông tin Thí sinh</h2>
-        <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-            <p><strong>Bài thi:</strong> <span id="infoTestTitle" style="color: #007bff; font-weight: bold; font-size: 18px;"></span></p>
-            <hr>
-            <p><strong>Họ và tên:</strong> <span id="infoName" style="font-weight: bold;"></span></p>
-            <p><strong>Ngày sinh:</strong> <span id="infoDob"></span></p>
-            <p><strong>Chức danh:</strong> <span id="infoTitle"></span></p>
-            <p><strong>Số CCCD:</strong> <span id="infoCccd"></span></p>
+    <div class="card">
+        <h3>2. Cấu hình các Section</h3>
+        <div id="sectionsContainer"></div>
+        <button type="button" id="btnAddSection" style="background: #28a745;">+ Thêm Section Mới</button>
+    </div>
+
+    <div class="card">
+        <h3>3. Danh sách người làm bài</h3>
+        <div class="form-group">
+            <label>Upload File Excel Danh sách:</label>
+            <input type="file" id="fileCandidates" accept=".xlsx, .xls">
         </div>
-        <p style="color: red; font-style: italic;">Lưu ý: Thời gian làm bài sẽ đếm ngược ngay sau khi bạn bấm nút Bắt đầu!</p>
-        <button id="btnStartExam" style="width: 100%; font-size: 18px; padding: 12px;">Xác nhận & Bắt đầu làm bài</button>
     </div>
 
-    <!-- PHẦN 3: Khu vực làm bài thi -->
-    <div id="examSection" class="card hidden">
-        <div id="timerDisplay">Thời gian còn lại: --:--</div>
-        <h2 id="examTitle" style="color: #007bff; border-bottom: 2px solid #ccc; padding-bottom: 10px;"></h2>
-        <div id="questionsContainer"></div>
-        <button id="btnSubmitExam" style="width: 100%; background: #007bff; font-size: 18px; padding: 15px; font-weight: bold;">NỘP BÀI</button>
+    <button type="button" id="btnSaveData">Lưu Bài Thi Mới Lên Hệ Thống</button>
+    <div id="statusMessage"></div>
+
+    <hr style="margin: 40px 0; border: 2px solid #ccc;">
+
+    <!-- THỐNG KÊ KẾT QUẢ -->
+    <div class="card">
+        <h3>4. Thống kê & Quản lý kết quả</h3>
+        <div class="form-group">
+            <label>Chọn bài thi đã lưu:</label>
+            <div style="display: flex; gap: 10px;">
+                <select id="historyTestSelect" style="flex: 1;">
+                    <option value="">-- Đang tải danh sách bài thi... --</option>
+                </select>
+                <!-- NÚT XÓA BÀI THI -->
+                <button type="button" id="btnDeleteTest" style="background: #dc3545; margin-top: 0;">Xóa Bài Thi</button>
+            </div>
+        </div>
+        <button type="button" id="btnLoadStats" style="background: #17a2b8;">Xem Thống Kê</button>
+        
+        <div id="statsSummary" style="display: none; margin-top: 15px;">
+            <p><strong>Tổng số bài đã nộp:</strong> <span id="totalSubs">0</span> | 
+               <strong style="color: green;">Đạt:</strong> <span id="passedSubs">0</span> | 
+               <strong style="color: red;">Trượt:</strong> <span id="failedSubs">0</span>
+            </p>
+            <canvas id="scoreChart" width="400" height="150"></canvas>
+            <table id="resultsTable">
+                <thead>
+                    <tr><th>CCCD</th><th>Họ và Tên</th><th>Điểm</th><th>Kết quả</th><th>Ngày nộp</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
-    <!-- PHẦN 4: Kết quả -->
-    <div id="resultSection" class="card hidden" style="text-align: center;">
-        <h2>Hoàn thành bài thi!</h2>
-        <h1 id="scoreDisplay" style="color: #007bff; font-size: 40px; margin: 10px 0;"></h1>
-        <h3 id="resultMessage"></h3>
-    </div>
-
-    <script type="module" src="./js/user.js"></script>
+    <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
