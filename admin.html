@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản trị Bài thi - Chạy Tàu 1</title>
+    <!-- Nhúng thư viện SheetJS để đọc file Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Nhúng thư viện Chart.js để vẽ biểu đồ -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
@@ -28,25 +30,44 @@
     <!-- TẠO ĐỀ THI MỚI -->
     <div class="card">
         <h3>1. Cấu hình bài thi mới</h3>
-        <div class="form-group"><label>Tiêu đề bài kiểm tra:</label><input type="text" id="testTitle" required></div>
-        <div class="form-group"><label>Thời gian làm bài (phút):</label><input type="number" id="duration" value="45" required></div>
-        <div class="form-group"><label>Thời gian mở bài thi:</label><input type="datetime-local" id="startTime" required></div>
-        <div class="form-group"><label>Thời gian đóng bài thi:</label><input type="datetime-local" id="endTime" required></div>
-        <div class="form-group"><label>Điểm tối thiểu để đạt:</label><input type="number" id="passScore" value="50" required></div>
+        <div class="form-group">
+            <label>Tiêu đề bài kiểm tra:</label>
+            <input type="text" id="testTitle" required>
+        </div>
+        <div class="form-group">
+            <label>Thời gian làm bài (phút):</label>
+            <input type="number" id="duration" value="45" required>
+        </div>
+        <div class="form-group">
+            <label>Thời gian mở bài thi:</label>
+            <input type="datetime-local" id="startTime" required>
+        </div>
+        <div class="form-group">
+            <label>Thời gian đóng bài thi:</label>
+            <input type="datetime-local" id="endTime" required>
+        </div>
+        <div class="form-group">
+            <label>Điểm tối thiểu để đạt:</label>
+            <input type="number" id="passScore" value="50" required>
+        </div>
     </div>
 
     <div class="card">
         <h3>2. Cấu hình các Section</h3>
-        <p><i>Mỗi Section upload một file Excel ngân hàng câu hỏi riêng.</i></p>
+        <p><i>Mỗi Section upload một file Excel ngân hàng câu hỏi riêng (Cột A: Câu hỏi, Cột B: Đ/A đúng, Cột C+: Đ/A sai).</i></p>
         <div id="sectionsContainer">
-            <!-- Các khối section sẽ được Javascript chèn vào đây -->
+            <!-- Các khối section sẽ được Javascript chèn vào đây tự động -->
         </div>
         <button id="btnAddSection" style="background: #28a745;">+ Thêm Section Mới</button>
     </div>
 
     <div class="card">
         <h3>3. Danh sách người làm bài</h3>
-        <div class="form-group"><label>Upload File Excel Danh sách (Dùng chung cho bài thi này):</label><input type="file" id="fileCandidates" accept=".xlsx, .xls"></div>
+        <p><i>File Excel: Cột A (STT), B (Họ tên), C (Ngày sinh), D (Chức danh), E (Giới tính), F (Số CCCD)</i></p>
+        <div class="form-group">
+            <label>Upload File Excel Danh sách (Dùng chung cho bài thi này):</label>
+            <input type="file" id="fileCandidates" accept=".xlsx, .xls">
+        </div>
     </div>
 
     <button id="btnSaveData">Lưu Bài Thi Mới Lên Hệ Thống</button>
@@ -70,6 +91,9 @@
                <strong style="color: green;">Đạt:</strong> <span id="passedSubs">0</span> | 
                <strong style="color: red;">Trượt:</strong> <span id="failedSubs">0</span>
             </p>
+            
+            <h4 style="margin-top: 20px;">Biểu đồ Phổ Điểm</h4>
+            <!-- Thẻ canvas này là nơi Chart.js sẽ vẽ biểu đồ vào -->
             <canvas id="scoreChart" width="400" height="150"></canvas>
             
             <h4 style="margin-top: 30px;">Chi tiết Người làm bài</h4>
@@ -84,12 +108,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Dữ liệu chèn vào đây -->
+                    <!-- Dữ liệu từng người nộp bài sẽ được chèn vào đây -->
                 </tbody>
             </table>
         </div>
     </div>
 
+    <!-- Gọi file xử lý logic Javascript -->
     <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
