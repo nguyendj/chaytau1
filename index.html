@@ -2,14 +2,58 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Làm bài kiểm tra - Chạy Tàu 1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Thi Trắc nghiệm</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #f9f9f9; }
+        .hidden { display: none; }
+        input[type="text"] { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; margin-top: 10px;}
+        button:hover { background: #218838; }
+        .question-block { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px; }
+        .answer-label { display: block; margin: 8px 0; cursor: pointer; padding: 8px; background: #f1f1f1; border-radius: 4px;}
+        .answer-label:hover { background: #e2e2e2; }
+        #timerDisplay { font-size: 24px; font-weight: bold; color: #dc3545; text-align: right; }
+    </style>
 </head>
 <body>
-    <h1>Trang Làm Bài Thi</h1>
 
-    <script type="module">
-        import { db } from './js/firebase-config.js';
-        console.log("Kết nối Firestore thành công:", db);
-    </script>
+    <!-- PHẦN 1: Đăng nhập -->
+    <div id="loginSection" class="card">
+        <h2>Đăng nhập hệ thống thi</h2>
+        <p>Vui lòng nhập chính xác số Căn cước công dân (CCCD) của bạn:</p>
+        <input type="text" id="cccdInput" placeholder="Nhập số CCCD...">
+        <button id="btnLogin">Đăng Nhập</button>
+        <p id="loginMessage" style="color: red; font-weight: bold;"></p>
+    </div>
+
+    <!-- PHẦN 2: Xác nhận thông tin -->
+    <div id="infoSection" class="card hidden">
+        <h2>Xác nhận thông tin Thí sinh</h2>
+        <p><strong>Họ và tên:</strong> <span id="infoName"></span></p>
+        <p><strong>Ngày sinh:</strong> <span id="infoDob"></span></p>
+        <p><strong>Chức danh:</strong> <span id="infoTitle"></span></p>
+        <p style="color: blue;"><i>Vui lòng kiểm tra kỹ thông tin trước khi bắt đầu. Thời gian sẽ đếm ngược ngay khi bạn bấm nút!</i></p>
+        <button id="btnStartExam">Bắt đầu làm bài</button>
+    </div>
+
+    <!-- PHẦN 3: Khu vực làm bài thi -->
+    <div id="examSection" class="card hidden">
+        <div id="timerDisplay">Thời gian còn lại: --:--</div>
+        <h2 id="examTitle">Đề thi trắc nghiệm</h2>
+        <div id="questionsContainer"></div>
+        <button id="btnSubmitExam" style="width: 100%; background: #007bff; font-size: 18px; padding: 15px;">NỘP BÀI</button>
+    </div>
+
+    <!-- PHẦN 4: Kết quả -->
+    <div id="resultSection" class="card hidden">
+        <h2>Hoàn thành bài thi!</h2>
+        <h3 id="scoreDisplay"></h3>
+        <p id="resultMessage"></p>
+    </div>
+
+    <!-- Gọi file xử lý logic Javascript -->
+    <script type="module" src="./js/user.js"></script>
 </body>
 </html>
