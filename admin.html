@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản trị Bài thi - Chạy Tàu 1</title>
-    <!-- Nhúng thư viện SheetJS để đọc file Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <!-- Nhúng thư viện Chart.js để vẽ biểu đồ -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
@@ -22,99 +20,91 @@
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
+        
+        /* CSS cho phần Form chỉnh sửa */
+        .edit-box { display: none; background: #fff3cd; padding: 15px; border: 1px solid #ffeeba; border-radius: 5px; margin-top: 15px; }
+        .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>Quản trị Hệ thống Thi Trắc nghiệm (Phiên bản Nâng cấp)</h1>
+    <h1>Quản trị Hệ thống Thi Trắc nghiệm</h1>
 
     <!-- TẠO ĐỀ THI MỚI -->
     <div class="card">
         <h3>1. Cấu hình bài thi mới</h3>
         <div class="form-group">
-            <label>Tiêu đề bài kiểm tra:</label>
-            <input type="text" id="testTitle" required>
+            <label>Tiêu đề bài kiểm tra: <span id="titleCheckMsg" style="font-size: 14px; margin-left: 10px;"></span></label>
+            <input type="text" id="testTitle" placeholder="Gõ tên bài thi để kiểm tra trùng..." required>
         </div>
-        <div class="form-group">
-            <label>Thời gian làm bài (phút):</label>
-            <input type="number" id="duration" value="45" required>
-        </div>
-        <div class="form-group">
-            <label>Thời gian mở bài thi:</label>
-            <input type="datetime-local" id="startTime" required>
-        </div>
-        <div class="form-group">
-            <label>Thời gian đóng bài thi:</label>
-            <input type="datetime-local" id="endTime" required>
-        </div>
-        <div class="form-group">
-            <label>Điểm tối thiểu để đạt:</label>
-            <input type="number" id="passScore" value="50" required>
-        </div>
+        <div class="form-group"><label>Thời gian làm bài (phút):</label><input type="number" id="duration" value="45" required></div>
+        <div class="form-group"><label>Thời gian mở bài thi:</label><input type="datetime-local" id="startTime" required></div>
+        <div class="form-group"><label>Thời gian đóng bài thi:</label><input type="datetime-local" id="endTime" required></div>
+        <div class="form-group"><label>Điểm tối thiểu để đạt:</label><input type="number" id="passScore" value="50" required></div>
     </div>
 
     <div class="card">
         <h3>2. Cấu hình các Section</h3>
-        <p><i>Mỗi Section upload một file Excel ngân hàng câu hỏi riêng (Cột A: Câu hỏi, Cột B: Đ/A đúng, Cột C+: Đ/A sai).</i></p>
-        <div id="sectionsContainer">
-            <!-- Các khối section sẽ được Javascript chèn vào đây tự động -->
-        </div>
-        <button id="btnAddSection" style="background: #28a745;">+ Thêm Section Mới</button>
+        <div id="sectionsContainer"></div>
+        <button type="button" id="btnAddSection" style="background: #28a745;">+ Thêm Section Mới</button>
     </div>
 
     <div class="card">
         <h3>3. Danh sách người làm bài</h3>
-        <p><i>File Excel: Cột A (STT), B (Họ tên), C (Ngày sinh), D (Chức danh), E (Giới tính), F (Số CCCD)</i></p>
         <div class="form-group">
-            <label>Upload File Excel Danh sách (Dùng chung cho bài thi này):</label>
+            <label>Upload File Excel Danh sách:</label>
             <input type="file" id="fileCandidates" accept=".xlsx, .xls">
         </div>
     </div>
 
-    <button id="btnSaveData">Lưu Bài Thi Mới Lên Hệ Thống</button>
+    <button type="button" id="btnSaveData">Lưu Bài Thi Mới Lên Hệ Thống</button>
     <div id="statusMessage"></div>
 
     <hr style="margin: 40px 0; border: 2px solid #ccc;">
 
-    <!-- THỐNG KÊ KẾT QUẢ -->
+    <!-- QUẢN LÝ BÀI THI CŨ -->
     <div class="card">
-        <h3>4. Thống kê & Quản lý kết quả</h3>
+        <h3>4. Thống kê & Quản lý bài thi</h3>
         <div class="form-group">
             <label>Chọn bài thi đã lưu:</label>
             <select id="historyTestSelect">
                 <option value="">-- Đang tải danh sách bài thi... --</option>
             </select>
         </div>
-        <button id="btnLoadStats" style="background: #17a2b8;">Xem Thống Kê</button>
         
-        <div id="statsSummary" style="display: none; margin-top: 15px;">
+        <div class="action-buttons">
+            <button type="button" id="btnLoadStats" style="background: #17a2b8; margin-top: 0;">Xem Thống Kê</button>
+            <button type="button" id="btnEditTest" style="background: #ffc107; color: black; margin-top: 0;">Sửa Cấu Hình</button>
+            <button type="button" id="btnDeleteTest" style="background: #dc3545; margin-top: 0;">Xóa Bài Thi</button>
+        </div>
+
+        <!-- FORM CHỈNH SỬA BÀI THI (ẨN) -->
+        <div id="editConfigSection" class="edit-box">
+            <h4 style="margin-top: 0; color: #856404;">✏️ Chỉnh sửa thông tin bài thi</h4>
+            <div class="form-group"><label>Tiêu đề mới:</label><input type="text" id="editTestTitle"></div>
+            <div class="form-group"><label>Thời gian làm bài (phút):</label><input type="number" id="editDuration"></div>
+            <div class="form-group"><label>Thời gian mở:</label><input type="datetime-local" id="editStartTime"></div>
+            <div class="form-group"><label>Thời gian đóng:</label><input type="datetime-local" id="editEndTime"></div>
+            <div class="form-group"><label>Điểm tối thiểu:</label><input type="number" id="editPassScore"></div>
+            <button type="button" id="btnSaveEdit" style="background: #28a745;">Lưu Thay Đổi</button>
+            <button type="button" id="btnCancelEdit" style="background: #6c757d;">Hủy Bỏ</button>
+        </div>
+        
+        <!-- KHU VỰC THỐNG KÊ -->
+        <div id="statsSummary" style="display: none; margin-top: 25px;">
             <p><strong>Tổng số bài đã nộp:</strong> <span id="totalSubs">0</span> | 
                <strong style="color: green;">Đạt:</strong> <span id="passedSubs">0</span> | 
                <strong style="color: red;">Trượt:</strong> <span id="failedSubs">0</span>
             </p>
-            
-            <h4 style="margin-top: 20px;">Biểu đồ Phổ Điểm</h4>
-            <!-- Thẻ canvas này là nơi Chart.js sẽ vẽ biểu đồ vào -->
             <canvas id="scoreChart" width="400" height="150"></canvas>
-            
-            <h4 style="margin-top: 30px;">Chi tiết Người làm bài</h4>
             <table id="resultsTable">
                 <thead>
-                    <tr>
-                        <th>CCCD</th>
-                        <th>Họ và Tên</th>
-                        <th>Điểm</th>
-                        <th>Kết quả</th>
-                        <th>Ngày nộp</th>
-                    </tr>
+                    <tr><th>CCCD</th><th>Họ và Tên</th><th>Điểm</th><th>Kết quả</th><th>Ngày nộp</th></tr>
                 </thead>
-                <tbody>
-                    <!-- Dữ liệu từng người nộp bài sẽ được chèn vào đây -->
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
     </div>
 
-    <!-- Gọi file xử lý logic Javascript -->
     <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
