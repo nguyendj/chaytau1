@@ -116,17 +116,20 @@ document.getElementById('btnSaveData').addEventListener('click', async () => {
         // Thiết lập bài thi này làm "Bài thi đang kích hoạt" để User.js biết đường truy cập
         await setDoc(doc(db, "System", "ActiveTest"), { activeTestId: testId });
 
-        // 3. Xử lý danh sách thí sinh
+       // 3. Xử lý danh sách thí sinh
         const cData = await readExcelFile(fileCandidates);
         cData.forEach((row) => {
             if (row && row[5] !== undefined && row[5] !== null) {
                 const cccd = String(row[5]).trim();
                 if (cccd !== "" && cccd !== "undefined") {
-                    const candidateRef = doc(db, "Candidates", testId + "_" + cccd); // Gắn với testId để tránh trùng lịch sử
+                    const candidateRef = doc(db, "Candidates", testId + "_" + cccd); 
                     batch.set(candidateRef, {
                         testId: testId,
-                        stt: row[0] || "",
-                        fullName: row[1] ? String(row[1]).trim() : "",
+                        stt: row[0] !== undefined ? row[0] : "",
+                        fullName: row[1] !== undefined ? String(row[1]).trim() : "",
+                        dob: row[2] !== undefined ? String(row[2]).trim() : "",       // Đã bổ sung Ngày sinh
+                        title: row[3] !== undefined ? String(row[3]).trim() : "",     // Đã bổ sung Chức danh
+                        gender: row[4] !== undefined ? String(row[4]).trim() : "",   // Đã bổ sung Giới tính
                         cccd: cccd
                     });
                 }
