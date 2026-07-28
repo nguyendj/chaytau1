@@ -6,9 +6,8 @@ let testConfig = null;
 let activeTestId = null;
 let questionDataList = []; 
 let countdownInterval = null;
-let availableTests = {}; // Object lưu thông tin các bài thi đang mở
+let availableTests = {}; 
 
-// Thuật toán xáo trộn Fisher-Yates
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -17,9 +16,7 @@ function shuffleArray(array) {
     return array;
 }
 
-// ==========================================
-// 1. TẢI DANH SÁCH BÀI THI KHI MỞ TRANG
-// ==========================================
+// 1. TẢI VÀ TỰ ĐỘNG CHỌN BÀI THI ĐANG MỞ
 window.onload = async () => {
     const selectBox = document.getElementById('testSelect');
     try {
@@ -27,25 +24,34 @@ window.onload = async () => {
         selectBox.innerHTML = '<option value="">-- Chọn bài thi bạn muốn làm --</option>';
         
         const now = new Date();
+        let firstOpenTestId = null; // Lưu ID bài thi mở đầu tiên tìm thấy
+        let hasOpenTest = false;
 
         snapshot.forEach(docSnap => {
-            if (docSnap.id !== "current_test") { // Bỏ qua file rác cũ
+            if (docSnap.id !== "current_test") { 
                 const data = docSnap.data();
-                const endTime = new Date(data.endTime);
-                
-                // Chỉ hiển thị những bài thi chưa kết thúc
-                if (now <= endTime) {
-                    availableTests[data.testId] = data; // Lưu lại để dùng sau
-                    const option = document.createElement('option');
-                    option.value = data.testId;
-                    option.textContent = data.title;
-                    selectBox.appendChild(option);
+                if(data.endTime) {
+                    const endTime = new Date(data.endTime);
+                    // Sửa lỗi Parse Time: Đảm bảo thời gian hiện tại <= thời gian đóng
+                    if (now.getTime() <= endTime.getTime()) {
+                        availableTests[data.testId] = data;
+                        const option = document.createElement('option');
+                        option.value = data.testId;
+                        option.textContent = data.title;
+                        selectBox.appendChild(option);
+                        
+                        if(!firstOpenTestId) firstOpenTestId = data.testId;
+                        hasOpenTest = true;
+                    }
                 }
             }
         });
 
-        if (Object.keys(availableTests).length === 0) {
+        if (!hasOpenTest) {
             selectBox.innerHTML = '<option value="">-- Hiện không có bài thi nào đang mở --</option>';
+        } else {
+            // TỰ ĐỘNG CHỌN SẴN BÀI THI TRÊN DROPDOWN
+            selectBox.value = firstOpenTestId;
         }
     } catch (error) {
         console.error("Lỗi tải danh sách:", error);
@@ -53,9 +59,7 @@ window.onload = async () => {
     }
 };
 
-// ==========================================
-// 2. LOGIC ĐĂNG NHẬP VÀ XÁC THỰC
-// ==========================================
+// 2. ĐĂNG NHẬP
 document.getElementById('btnLogin').addEventListener('click', async () => {
     const testId = document.getElementById('testSelect').value;
     const cccd = document.getElementById('cccdInput').value.trim();
@@ -67,31 +71,25 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     msg.style.color = "blue"; msg.innerText = "Đang kiểm tra hệ thống...";
 
     try {
-        // Lấy cấu hình bài thi từ object đã lưu lúc tải trang
         testConfig = availableTests[testId];
         activeTestId = testId;
 
-        // Kiểm tra thời gian bắt đầu
         const now = new Date();
         const startTime = new Date(testConfig.startTime);
-        if (now < startTime) {
+        if (now.getTime() < startTime.getTime()) {
             msg.style.color = "red"; 
             msg.innerText = `Kỳ thi này chưa bắt đầu. Thời gian mở: ${startTime.toLocaleString('vi-VN')}`; 
             return;
         }
 
-        // Kiểm tra CCCD trong Database của bài thi này
         const candidateRef = doc(db, "Candidates", `${activeTestId}_${cccd}`);
         const docSnap = await getDoc(candidateRef);
 
         if (docSnap.exists()) {
             currentCandidate = docSnap.data();
-            
-            // Nếu đúng, chuyển sang màn hình Xác nhận
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('infoSection').classList.remove('hidden');
             
-            // Hiển thị thông tin lên giao diện
             document.getElementById('infoTestTitle').innerText = testConfig.title;
             document.getElementById('infoName').innerText = currentCandidate.fullName;
             document.getElementById('infoDob').innerText = currentCandidate.dob || "Không có";
@@ -106,9 +104,7 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
     }
 });
 
-// ==========================================
-// 3. TẢI ĐỀ THI, XÁO TRỘN VÀ BẮT ĐẦU
-// ==========================================
+// 3. TẢI ĐỀ THI & BẮT ĐẦU
 document.getElementById('btnStartExam').addEventListener('click', async () => {
     document.getElementById('infoSection').classList.add('hidden');
     document.getElementById('examSection').classList.remove('hidden');
@@ -118,8 +114,8 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
     const qSnapshot = await getDocs(qQuery);
     
     const questionsBySection = {};
-    qSnapshot.forEach((doc) => {
-        const q = { id: doc.id, ...doc.data() };
+    qSnapshot.forEach((docSnap) => {
+        const q = { id: docSnap.id, ...docSnap.data() };
         if (!questionsBySection[q.sectionId]) questionsBySection[q.sectionId] = [];
         questionsBySection[q.sectionId].push(q);
     });
@@ -131,8 +127,6 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
     testConfig.sections.forEach((secConfig, secIndex) => {
         const secId = secConfig.sectionId;
         let secQuestions = questionsBySection[secId] || [];
-        
-        // Xáo trộn & cắt lấy đúng số lượng câu
         secQuestions = shuffleArray(secQuestions).slice(0, secConfig.numQuestions);
         
         if (secQuestions.length > 0) {
@@ -145,41 +139,30 @@ document.getElementById('btnStartExam').addEventListener('click', async () => {
             answers = shuffleArray(answers);
 
             questionDataList.push({
-                id: q.id,
-                questionText: q.questionText,
-                correctAnswer: q.correctAnswer,
-                points: secConfig.pointsPerQuestion 
+                id: q.id, questionText: q.questionText, correctAnswer: q.correctAnswer, points: secConfig.pointsPerQuestion 
             });
 
             let html = `<div class="question-block" id="qblock_${globalQuestionIndex - 1}">
                 <p style="font-size: 16px; margin-bottom: 15px;"><strong>Câu ${globalQuestionIndex}:</strong> ${q.questionText}</p>`;
-            
             answers.forEach((ans) => {
-                html += `<label class="answer-label">
-                    <input type="radio" name="q_${globalQuestionIndex - 1}" value="${ans}"> ${ans}
-                </label>`;
+                html += `<label class="answer-label"><input type="radio" name="q_${globalQuestionIndex - 1}" value="${ans}"> ${ans}</label>`;
             });
             html += `</div>`;
             container.innerHTML += html;
         });
     });
-
     startTimer(testConfig.duration * 60);
 });
 
-// ==========================================
-// 4. ĐỒNG HỒ ĐẾM NGƯỢC
-// ==========================================
+// 4. ĐẾM NGƯỢC
 function startTimer(durationInSeconds) {
     let timer = durationInSeconds;
     const display = document.getElementById('timerDisplay');
-    
     countdownInterval = setInterval(() => {
         let minutes = parseInt(timer / 60, 10);
         let seconds = parseInt(timer % 60, 10);
         minutes = minutes < 10 ? "0" + minutes : minutes;
         seconds = seconds < 10 ? "0" + seconds : seconds;
-        
         display.textContent = `Thời gian còn lại: ${minutes}:${seconds}`;
 
         if (--timer < 0) {
@@ -190,9 +173,7 @@ function startTimer(durationInSeconds) {
     }, 1000);
 }
 
-// ==========================================
-// 5. CHẤM ĐIỂM & NỘP BÀI
-// ==========================================
+// 5. NỘP BÀI
 document.getElementById('btnSubmitExam').addEventListener('click', () => {
     const unanswered = questionDataList.findIndex((q, i) => !document.querySelector(`input[name="q_${i}"]:checked`));
     if (unanswered !== -1) {
@@ -205,24 +186,17 @@ document.getElementById('btnSubmitExam').addEventListener('click', () => {
 
 async function submitExam() {
     clearInterval(countdownInterval); 
-    
-    let totalScore = 0;
-    let maxScore = 0; 
-    const userAnswers = {};
+    let totalScore = 0; let maxScore = 0; const userAnswers = {};
 
     questionDataList.forEach((q, index) => {
         maxScore += q.points;
         const selected = document.querySelector(`input[name="q_${index}"]:checked`);
         const userChoice = selected ? selected.value : null;
         userAnswers[`Câu ${index + 1}`] = userChoice;
-
-        if (userChoice === q.correctAnswer) {
-            totalScore += q.points; 
-        }
+        if (userChoice === q.correctAnswer) totalScore += q.points; 
     });
 
     const isPassed = totalScore >= testConfig.passScore;
-    
     document.getElementById('examSection').classList.add('hidden');
     document.getElementById('resultSection').classList.remove('hidden');
     
@@ -230,26 +204,18 @@ async function submitExam() {
     document.getElementById('scoreDisplay').innerText = `${totalScore} / ${maxScore}`;
     
     if (isPassed) {
-        resMsg.style.color = "green";
-        resMsg.innerText = `Chúc mừng! Bạn đã ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
+        resMsg.style.color = "green"; resMsg.innerText = `Chúc mừng! Bạn đã ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
     } else {
-        resMsg.style.color = "red";
-        resMsg.innerText = `Rất tiếc! Bạn CHƯA ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
+        resMsg.style.color = "red"; resMsg.innerText = `Rất tiếc! Bạn CHƯA ĐẠT (Điểm chuẩn: ${testConfig.passScore})`;
     }
 
     try {
         const submissionRef = doc(db, "Submissions", `${activeTestId}_${currentCandidate.cccd}`);
         await setDoc(submissionRef, {
-            testId: activeTestId,
-            fullName: currentCandidate.fullName,
-            cccd: currentCandidate.cccd,
-            score: totalScore,
-            isPassed: isPassed,
-            answers: userAnswers,
-            submittedAt: new Date().toISOString()
+            testId: activeTestId, fullName: currentCandidate.fullName, cccd: currentCandidate.cccd,
+            score: totalScore, isPassed: isPassed, answers: userAnswers, submittedAt: new Date().toISOString()
         });
     } catch (err) {
-        console.error("Lỗi lưu kết quả:", err);
-        alert("Lỗi mạng! Điểm đã được tính nhưng không thể lưu lên máy chủ.");
+        console.error(err); alert("Lỗi mạng! Điểm đã được tính nhưng không thể lưu lên máy chủ.");
     }
 }
